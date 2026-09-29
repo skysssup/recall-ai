@@ -104,6 +104,66 @@ def export_download(db: Session = Depends(get_db)):
     )
 
 
+
+
+@router.get("/export/csv")
+def export_problems_csv(db: Session = Depends(get_db)):
+    """Flat CSV of the problem library — handy for spreadsheets."""
+    import csv
+    import io
+
+    problems = db.query(Problem).order_by(Problem.title).all()
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "title",
+            "platform",
+            "slug",
+            "difficulty",
+            "topic",
+            "tags",
+            "stability",
+            "difficulty_score",
+            "retrievability",
+            "review_count",
+            "lapses",
+            "due_at",
+            "last_reviewed_at",
+            "url",
+            "notes",
+        ]
+    )
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    from ..scheduler import retrievability
+
+    for p in problems:
+        r = retrievability(p.stability, p.last_reviewed_at, now)
+        writer.writerow(
+            [
+                p.title,
+                p.platform,
+                p.slug,
+                p.difficulty,
+                p.topic.name if p.topic else "",
+                p.tags or "",
+                f"{p.stability:.4f}",
+                f"{p.difficulty_score:.4f}",
+                f"{r:.4f}",
+                p.review_count,
+                p.lapses,
+                p.due_at.isoformat() + "Z" if p.due_at else "",
+                p.last_reviewed_at.isoformat() + "Z" if p.last_reviewed_at else "",
+                p.url or "",
+                (p.notes or "").replace("\n", " ").strip(),
+            ]
+        )
+    return PlainTextResponse(
+        buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=recall-problems.csv"},
+    )
+
 class ImportBody(BaseModel):
     data: dict
     merge: bool = True

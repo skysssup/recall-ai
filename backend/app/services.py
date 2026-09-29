@@ -9,9 +9,13 @@ from sqlalchemy.orm import Session
 
 from . import graph as graph_mod
 from .models import Problem, Review, Setting, Solve, Topic
+from .config import settings
 from .scheduler import (
     apply_review,
+    forecast_due_counts,
+    is_leech,
     priority_score,
+    preview_intervals,
     recall_from_solve,
     retrievability,
 )
@@ -368,3 +372,97 @@ def set_setting(db: Session, key: str, value: str) -> None:
         row.value = value
     else:
         db.add(Setting(key=key, value=value))
+
+
+
+def undo_last_review(db: Session, problem_id: Optional[str] = None) -> Optional[dict]:
+    """
+    Remove the most recent review and rebuild card state from remaining history.
+    When problem_id is set, undo only that problem's latest review.
+    Returns a summary dict, or None if nothing to undo.
+    """
+    q = db.query(Review).order_by(Review.created_at.desc())
+    if problem_id:
+        q = q.filter(Review.problem_id == problem_id)
+    latest = q.first()
+    if latest is None:
+        return None
+
+    problem = db.get(Problem, latest.problem_id)
+    if problem is None:
+        db.delete(latest)
+        db.flush()
+        return {"undone_review_id": latest.id, "problem_id": latest.problem_id}
+
+    summary = {
+        "undone_review_id": latest.id,
+        "problem_id": problem.id,
+        "rating": latest.rating,
+        "problem_title": problem.title,
+    }
+    db.delete(latest)
+    db.flush()
+
+    remaining = (
+        db.query(Review)
+        .filter(Review.problem_id == problem.id)
+        .order_by(Review.created_at.asc())
+        .all()
+    )
+    # Rebuild from cold-start defaults.
+    problem.stability = 1.0
+    problem.difficulty_score = 5.0
+    problem.retrievability = 1.0
+    problem.review_count = 0
+    problem.lapses = 0
+    problem.last_reviewed_at = None
+    problem.due_at = _utcnow()
+
+    for rev in remaining:
+        state = apply_review(
+            stability=problem.stability,
+            difficulty=problem.difficulty_score,
+            rating=rev.rating,
+            review_count=problem.review_count,
+            lapses=problem.lapses,
+            last_review=problem.last_reviewed_at,
+            current=rev.created_at,
+        )
+        problem.stability = state.stability
+        problem.difficulty_score = state.difficulty
+        problem.retrievability = state.retrievability
+        problem.due_at = state.due_at
+        problem.last_reviewed_at = state.last_reviewed_at
+        problem.review_count = state.review_count
+        problem.lapses = state.lapses
+
+    if problem.topic:
+        refresh_topic_stats(db, problem.topic)
+    db.flush()
+    return summary
+
+
+def build_forecast(db: Session, days: int = 14) -> list[dict]:
+    now = _utcnow()
+    cards = [
+        (p.stability, p.last_reviewed_at, p.due_at)
+        for p in db.query(Problem).all()
+    ]
+    return forecast_due_counts(cards, days=days, current=now)
+
+
+def list_leeches(db: Session, threshold: Optional[int] = None) -> list[Problem]:
+    thresh = threshold if threshold is not None else settings.leech_threshold
+    rows = db.query(Problem).filter(Problem.lapses >= thresh).order_by(Problem.lapses.desc()).all()
+    return rows
+
+
+def interval_previews_for(problem: Problem) -> dict[str, float]:
+    raw = preview_intervals(
+        stability=problem.stability,
+        difficulty=problem.difficulty_score,
+        review_count=problem.review_count,
+        lapses=problem.lapses,
+        last_review=problem.last_reviewed_at,
+    )
+    return {str(k): v for k, v in raw.items()}

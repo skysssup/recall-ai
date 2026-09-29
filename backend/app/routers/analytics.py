@@ -82,5 +82,9 @@ def analytics_overview(db: Session = Depends(get_db)):
         "difficulty_breakdown": {
             d: sum(1 for p in problems if p.difficulty == d) for d in ("Easy", "Medium", "Hard")
         },
-        "platform_breakdown": {},
+        "platform_breakdown": {
+            plat: sum(1 for p in problems if p.platform == plat)
+            for plat in sorted({p.platform for p in problems})
+        },
+        "leech_count": sum(1 for p in problems if p.lapses >= 8),
     }

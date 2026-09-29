@@ -133,3 +133,38 @@ def test_manual_solve(client):
         },
     )
     assert r.status_code == 200
+
+
+def test_forecast_and_csv_and_undo(client):
+    created = client.post(
+        "/api/problems",
+        json={"title": "Merge Intervals", "slug": "merge-intervals", "topic_name": "Intervals"},
+    )
+    assert created.status_code == 201
+    pid = created.json()["id"]
+
+    r = client.post(f"/api/problems/{pid}/reviews", json={"rating": 3})
+    assert r.status_code == 200
+
+    forecast = client.get("/api/reviews/forecast", params={"days": 7})
+    assert forecast.status_code == 200
+    body = forecast.json()
+    assert body["days"] == 7
+    assert len(body["series"]) == 7
+
+    preview = client.get(f"/api/reviews/preview/{pid}")
+    assert preview.status_code == 200
+    assert "3" in preview.json()["intervals_days"]
+
+    csv_resp = client.get("/api/export/csv")
+    assert csv_resp.status_code == 200
+    assert "text/csv" in csv_resp.headers.get("content-type", "")
+    assert "Merge Intervals" in csv_resp.text
+
+    undo = client.post("/api/reviews/undo", params={"problem_id": pid})
+    assert undo.status_code == 200
+    assert undo.json()["ok"] is True
+
+    leeches = client.get("/api/reviews/leeches")
+    assert leeches.status_code == 200
+    assert isinstance(leeches.json(), list)
