@@ -80,3 +80,35 @@ def test_priority_overdue_higher():
     low = priority_score(0.95, 3.0, now + timedelta(days=5), now)
     high = priority_score(0.2, 8.0, now - timedelta(days=3), now)
     assert high > low
+
+
+def test_preview_intervals_keys():
+    from app.scheduler import preview_intervals
+
+    now = datetime(2026, 3, 1)
+    previews = preview_intervals(5.0, 5.0, review_count=2, current=now)
+    assert set(previews.keys()) == {1, 2, 3, 4}
+    assert previews[4] >= previews[3] >= previews[2]
+    assert previews[1] < previews[2]
+
+
+def test_is_leech():
+    from app.scheduler import is_leech
+
+    assert is_leech(8) is True
+    assert is_leech(3, threshold=8) is False
+    assert is_leech(3, threshold=3) is True
+
+
+def test_forecast_due_counts_shape():
+    from app.scheduler import forecast_due_counts
+
+    now = datetime(2026, 4, 1)
+    cards = [
+        (1.0, now - timedelta(days=10), now - timedelta(days=1)),
+        (30.0, now, now + timedelta(days=20)),
+    ]
+    series = forecast_due_counts(cards, days=7, current=now)
+    assert len(series) == 7
+    assert series[0]["due_count"] >= 1
+    assert sum(d["due_count"] for d in series) >= 1

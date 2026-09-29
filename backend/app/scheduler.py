@@ -220,3 +220,70 @@ def recall_from_solve(
     else:
         rating = RATING_EASY
     return strength, rating
+
+
+def is_leech(lapses: int, threshold: int = 8) -> bool:
+    """True when a card has lapsed enough times to need special attention."""
+    return lapses >= max(1, threshold)
+
+
+def preview_intervals(
+    stability: float,
+    difficulty: float,
+    review_count: int = 0,
+    lapses: int = 0,
+    last_review: Optional[datetime] = None,
+    current: Optional[datetime] = None,
+) -> dict[int, float]:
+    """
+    Days until next due for each rating, without mutating card state.
+    Useful for showing interval previews on the review UI.
+    """
+    now = _now(current)
+    out: dict[int, float] = {}
+    for rating in (RATING_AGAIN, RATING_HARD, RATING_GOOD, RATING_EASY):
+        state = apply_review(
+            stability=stability,
+            difficulty=difficulty,
+            rating=rating,
+            review_count=review_count,
+            lapses=lapses,
+            last_review=last_review,
+            current=now,
+        )
+        delta = (state.due_at - now).total_seconds() / 86400.0
+        out[rating] = round(max(0.0, delta), 3)
+    return out
+
+
+def forecast_due_counts(
+    cards: list[tuple[float, Optional[datetime], Optional[datetime]]],
+    days: int = 14,
+    current: Optional[datetime] = None,
+) -> list[dict]:
+    """
+    Project how many cards would be due each day assuming no new reviews.
+
+    Each card is (stability, last_reviewed_at, due_at).
+    A card counts on the first day where due_at <= day_end or R < target.
+    """
+    now = _now(current)
+    days = max(1, min(90, days))
+    # day_offset -> set of card indices first due that day
+    buckets: dict[int, set[int]] = {i: set() for i in range(days)}
+    for idx, (stability, last_review, due_at) in enumerate(cards):
+        for offset in range(days):
+            day_end = now + timedelta(days=offset + 1)
+            r = retrievability(stability, last_review, day_end)
+            due = due_at is None or due_at <= day_end or r < TARGET_RETRIEVABILITY
+            if due:
+                buckets[offset].add(idx)
+                break
+    return [
+        {
+            "day_offset": i,
+            "date": (now + timedelta(days=i)).date().isoformat(),
+            "due_count": len(buckets[i]),
+        }
+        for i in range(days)
+    ]
