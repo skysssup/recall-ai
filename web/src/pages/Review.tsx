@@ -4,12 +4,23 @@ import type { Problem } from '../lib/types'
 import { RATING_LABELS } from '../lib/types'
 import HealthBar from '../components/HealthBar'
 
+function formatInterval(days: number): string {
+  if (days < 1) {
+    const hours = Math.max(1, Math.round(days * 24))
+    return `${hours}h`
+  }
+  if (days < 30) return `${days.toFixed(days < 10 ? 1 : 0)}d`
+  return `${(days / 30).toFixed(1)}mo`
+}
+
 export default function ReviewPage() {
   const [queue, setQueue] = useState<Problem[]>([])
   const [idx, setIdx] = useState(0)
   const [started, setStarted] = useState(Date.now())
   const [toast, setToast] = useState('')
   const [loading, setLoading] = useState(true)
+  const [previews, setPreviews] = useState<Record<string, number>>({})
+  const [lastReviewedId, setLastReviewedId] = useState<string | null>(null)
 
   const reload = useCallback(() => {
     setLoading(true)
@@ -25,17 +36,50 @@ export default function ReviewPage() {
 
   const current = queue[idx]
 
+  useEffect(() => {
+    if (!current) {
+      setPreviews({})
+      return
+    }
+    let cancelled = false
+    api.previewIntervals(current.id).then((res) => {
+      if (!cancelled) setPreviews(res.intervals_days)
+    }).catch(() => {
+      if (!cancelled) setPreviews({})
+    })
+    return () => { cancelled = true }
+  }, [current?.id])
+
   const submit = useCallback(async (rating: number) => {
     if (!current) return
     const duration = Math.round((Date.now() - started) / 1000)
+    const reviewedId = current.id
     await api.review(current.id, rating, duration)
-    setToast(`${RATING_LABELS[rating].label} · next interval scheduled`)
+    setLastReviewedId(reviewedId)
+    setToast(`${RATING_LABELS[rating].label} · next interval scheduled · U to undo`)
     const next = queue.slice(0, idx).concat(queue.slice(idx + 1))
     setQueue(next)
     setStarted(Date.now())
     if (idx >= next.length) setIdx(Math.max(0, next.length - 1))
-    setTimeout(() => setToast(''), 1600)
+    setTimeout(() => setToast(''), 2200)
   }, [current, started, queue, idx])
+
+  const undo = useCallback(async () => {
+    if (!lastReviewedId) {
+      setToast('Nothing to undo')
+      setTimeout(() => setToast(''), 1200)
+      return
+    }
+    try {
+      const res = await api.undoReview(lastReviewedId)
+      setLastReviewedId(null)
+      setToast(`Undid review of ${res.problem_title || 'card'}`)
+      reload()
+    } catch {
+      setToast('Undo failed')
+    }
+    setTimeout(() => setToast(''), 1600)
+  }, [lastReviewedId, reload])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -46,21 +90,30 @@ export default function ReviewPage() {
       }
       if (e.key === 'ArrowRight' && idx < queue.length - 1) setIdx(idx + 1)
       if (e.key === 'ArrowLeft' && idx > 0) setIdx(idx - 1)
+      if (e.key.toLowerCase() === 'u') {
+        e.preventDefault()
+        undo()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [submit, idx, queue.length])
+  }, [submit, undo, idx, queue.length])
 
-  if (loading) return <div className="empty">Building review queue…</div>
+  if (loading) return <div className="empty" role="status">Building review queue…</div>
 
   return (
     <div>
       <div className="page-head">
         <div>
           <h2>Review</h2>
-          <p>Keyboard: 1 Again · 2 Hard · 3 Good · 4 Easy · ←/→ skip</p>
+          <p>Keyboard: 1 Again · 2 Hard · 3 Good · 4 Easy · U undo · ←/→ skip</p>
         </div>
-        <button className="btn" onClick={reload}>Refresh queue</button>
+        <div className="row">
+          <button className="btn" onClick={undo} disabled={!lastReviewedId} aria-label="Undo last review">
+            Undo
+          </button>
+          <button className="btn" onClick={reload}>Refresh queue</button>
+        </div>
       </div>
 
       {!current ? (
@@ -69,11 +122,12 @@ export default function ReviewPage() {
           <p>All caught up. Log a new solve or add problems to keep training.</p>
         </div>
       ) : (
-        <div className="panel review-card">
+        <div className="panel review-card" aria-live="polite">
           <div className="row">
             <span className={`badge ${current.difficulty.toLowerCase()}`}>{current.difficulty}</span>
             <span className="badge">{current.platform}</span>
             {current.topic_name && <span className="badge">{current.topic_name}</span>}
+            {current.lapses >= 8 && <span className="badge" style={{ color: 'var(--danger, #f87171)' }}>leech</span>}
             <span className="spacer" />
             <span className="muted">{idx + 1} / {queue.length}</span>
           </div>
@@ -93,18 +147,27 @@ export default function ReviewPage() {
               <div style={{ whiteSpace: 'pre-wrap' }}>{current.notes}</div>
             </div>
           )}
-          <div className="rating-row">
+          <div className="rating-row" role="group" aria-label="Review rating">
             {[1, 2, 3, 4].map((r) => (
-              <button key={r} className={`rating-btn r${r}`} onClick={() => submit(r)}>
+              <button
+                key={r}
+                className={`rating-btn r${r}`}
+                onClick={() => submit(r)}
+                aria-label={`${RATING_LABELS[r].label}${previews[String(r)] != null ? `, next in ${formatInterval(previews[String(r)])}` : ''}`}
+              >
                 <div className="label">{RATING_LABELS[r].label}</div>
-                <div className="hint">{RATING_LABELS[r].hint}</div>
+                <div className="hint">
+                  {previews[String(r)] != null
+                    ? formatInterval(previews[String(r)])
+                    : RATING_LABELS[r].hint}
+                </div>
                 <div className="key">Press {r}</div>
               </button>
             ))}
           </div>
         </div>
       )}
-      {toast && <div className="toast">{toast}</div>}
+      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
 }

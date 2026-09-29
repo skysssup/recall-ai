@@ -69,11 +69,13 @@ export default function SettingsPage() {
 
       <div className="panel" style={{ marginTop: 16 }}>
         <h3>Export / Import</h3>
-        <p className="muted">Full JSON backup of topics, problems, reviews, and solves.</p>
+        <p className="muted">Full JSON backup, or a flat CSV of the problem library for spreadsheets.</p>
         <div className="row">
-          <button className="btn" onClick={doExport}>Download export</button>
+          <button className="btn" onClick={doExport}>Download JSON</button>
+          <a className="btn" href={api.exportCsvUrl()} download="recall-problems.csv">Download CSV</a>
           <label className="btn">
             Import JSON
+            <span className="sr-only">Upload a Recall JSON backup</span>
             <input type="file" accept="application/json,.json" hidden onChange={(e) => {
               const f = e.target.files?.[0]
               if (f) doImport(f)
@@ -90,6 +92,7 @@ export default function SettingsPage() {
             <tr><td><span className="badge">G then D/R/P/G/A/L/S</span></td><td>Navigate pages</td></tr>
             <tr><td><span className="badge">1 2 3 4</span></td><td>Rate current review card</td></tr>
             <tr><td><span className="badge">← →</span></td><td>Move in review queue</td></tr>
+            <tr><td><span className="badge">U</span></td><td>Undo last review</td></tr>
           </tbody>
         </table>
       </div>

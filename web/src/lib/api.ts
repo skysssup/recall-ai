@@ -55,4 +55,18 @@ export const api = {
     req('/api/import', { method: 'POST', body: JSON.stringify({ data, merge: true }) }),
   manualSolve: (body: Record<string, unknown>) =>
     req<Solve>('/api/capture/manual', { method: 'POST', body: JSON.stringify(body) }),
+  forecast: (days = 14) =>
+    req<{ days: number; series: { day_offset: number; date: string; due_count: number }[]; total_projected: number }>(
+      `/api/reviews/forecast?days=${days}`,
+    ),
+  leeches: () => req<Problem[]>('/api/reviews/leeches'),
+  previewIntervals: (id: string) =>
+    req<{ problem_id: string; intervals_days: Record<string, number> }>(`/api/reviews/preview/${id}`),
+  undoReview: (problemId?: string) => {
+    const qs = problemId ? `?problem_id=${encodeURIComponent(problemId)}` : ''
+    return req<{ ok: boolean; problem_id: string; problem_title?: string }>(`/api/reviews/undo${qs}`, {
+      method: 'POST',
+    })
+  },
+  exportCsvUrl: () => '/api/export/csv',
 }

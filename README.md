@@ -11,9 +11,10 @@ Recall keeps a personal library of coding problems, tracks how well you still re
 - **Problem library** with notes, tags, difficulty, and platform metadata
 - **Solve capture** via Chrome extension (LeetCode) or manual form — timing + submissions map to a review grade
 - **Search** across topics, problems, and notes (`⌘/Ctrl+K`)
-- **Export / import** full JSON backups
+- **Export / import** full JSON backups and CSV problem export
+- **14-day due forecast**, leech detection, review undo, interval previews
 - **Analytics** — health score, streak, rating mix, 30-day activity
-- **Keyboard-first** navigation (`G` then `D/R/P/G/A/L/S`, ratings `1–4`)
+- **Keyboard-first** navigation (`G` then `D/R/P/G/A/L/S`, ratings `1–4`, `U` undo)
 - **Local-first** SQLite backend — no cloud account required
 
 ## Quick start
@@ -77,6 +78,10 @@ backend/tests/   Scheduler, graph, and API tests
 web/             Vite + React UI
 extension/       MV3 LeetCode capture extension
 ```
+
+## Version
+
+1.1.0
 
 ## License
 
