@@ -10,20 +10,32 @@ from .routers import analytics, capture, export_import, meta, problems, reviews,
 APP_VERSION = "1.1.0"
 
 
+def _is_loopback(host: str) -> bool:
+    h = (host or "").strip().lower()
+    return h in {"127.0.0.1", "localhost", "::1"} or h.startswith("127.")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    default_token = "dev-token-change-me"
+    if settings.api_token == default_token and not _is_loopback(settings.host):
+        raise RuntimeError(
+            "Refusing to start: RECALL_API_TOKEN is still the default and "
+            f"RECALL_HOST={settings.host!r} is not loopback. "
+            "Bind 127.0.0.1 or set a real token."
+        )
     init_db()
     yield
 
 
 app = FastAPI(
     title="Recall",
-    description="Spaced repetition for algorithmic problem solving",
+    description="Spaced repetition for coding problems",
     version=APP_VERSION,
     lifespan=lifespan,
 )
 
-# Local-first API: allow configured origins plus any localhost / extension origin.
+# Allow configured origins plus localhost / extension origins.
 _origins = list(settings.cors_origins)
 app.add_middleware(
     CORSMiddleware,

@@ -20,7 +20,7 @@ export default function DashboardPage() {
       <div className="page-head">
         <div>
           <h2>Dashboard</h2>
-          <p>Your algorithmic memory at a glance.</p>
+          <p>Due cards and topic health.</p>
         </div>
         <Link className="btn primary" to="/review">Start review</Link>
       </div>

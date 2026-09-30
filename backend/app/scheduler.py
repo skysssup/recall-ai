@@ -1,15 +1,9 @@
 """
-Recall scheduler — a compact spaced-repetition engine.
+SM-2-ish scheduler (not FSRS).
 
-Public FSRS uses a multi-parameter model. Here we keep a small, transparent
-set of knobs that are easy to reason about and unit-test:
-
-  R(t) = (1 + t / (9 * S)) ** (-w)     # retrievability at elapsed days t
-  S'   = update(S, D, rating)          # stability after a review
-  D'   = clamp(D + delta(rating))      # difficulty after a review
-  due  = now + interval_days(S', R_target)
-
-Ratings: 1=Again, 2=Hard, 3=Good, 4=Easy.
+R(t)=(1+t/(9S))^(-0.5) retrievability; S stability days; D difficulty 1–10.
+due = now + days until R≈0.9. Ratings 1–4: Again/Hard/Good/Easy.
+Datetimes are naive UTC (tz stripped on ingest).
 """
 from __future__ import annotations
 

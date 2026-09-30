@@ -18,6 +18,7 @@
     return m ? m[1] : null
   }
 
+  // LeetCode DOM churns; these few selectors break often — adjust when capture fails.
   function readMeta() {
     const titleEl =
       document.querySelector('[data-cy="question-title"]') ||
