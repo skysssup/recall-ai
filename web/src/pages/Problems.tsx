@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -17,11 +17,11 @@ export default function ProblemsPage() {
   const [params] = useSearchParams()
   const focus = params.get('focus')
 
-  const load = () => {
+  const load = useCallback(() => {
     api.problems({ q, topic, limit: 200 }).then(setProblems)
     api.topics().then(setTopics)
-  }
-  useEffect(() => { load() }, [q, topic])
+  }, [q, topic])
+  useEffect(() => { load() }, [load])
 
   const sorted = useMemo(() => {
     const list = [...problems]

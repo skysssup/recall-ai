@@ -126,10 +126,11 @@
     if (label.includes('submit')) state.submissions += 1
   }, true)
 
-  // SPA navigation
+  // SPA navigation — skip work while the tab is hidden
   let last = slugFromUrl()
   if (last) resetForSlug(last)
   setInterval(() => {
+    if (document.hidden) return
     const s = slugFromUrl()
     if (s && s !== last) {
       last = s

@@ -16,7 +16,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8787
 ```
 
-Bind `127.0.0.1` only. The default API token `dev-token-change-me` is a local toy — the API trusts it. Do not bind `0.0.0.0` while that default is still set; startup refuses non-loopback hosts with the default token.
+Bind `127.0.0.1` only. Startup refuses every non-loopback host (even with a custom token). Full JSON backup export/import includes review and solve history.
 
 Optional env vars (prefix `RECALL_`):
 

@@ -17,12 +17,11 @@ def _is_loopback(host: str) -> bool:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    default_token = "dev-token-change-me"
-    if settings.api_token == default_token and not _is_loopback(settings.host):
+    # Local-only API: reject every non-loopback bind, even with a custom token.
+    if not _is_loopback(settings.host):
         raise RuntimeError(
-            "Refusing to start: RECALL_API_TOKEN is still the default and "
-            f"RECALL_HOST={settings.host!r} is not loopback. "
-            "Bind 127.0.0.1 or set a real token."
+            f"Refusing to start: RECALL_HOST={settings.host!r} is not loopback. "
+            "Bind 127.0.0.1 / localhost / ::1 only."
         )
     init_db()
     yield

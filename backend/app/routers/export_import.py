@@ -228,6 +228,76 @@ def import_data(body: ImportBody, db: Session = Depends(get_db)):
                     lapses=int(raw.get("lapses", 0)),
                 )
             )
+    # Restore review / solve history without duplicating identical rows.
+    problems_by_key = {
+        (p.platform, p.slug): p for p in db.query(Problem).all() if p.slug
+    }
+    existing_reviews = {
+        (r.problem_id, r.rating, r.created_at.isoformat() if r.created_at else None, r.note or "")
+        for r in db.query(Review).all()
+    }
+    for raw in data.get("reviews") or []:
+        platform = raw.get("problem_platform")
+        slug = raw.get("problem_slug")
+        prob = problems_by_key.get((platform, slug)) if platform and slug else None
+        if not prob:
+            continue
+        created = None
+        if raw.get("created_at"):
+            try:
+                created = datetime.fromisoformat(str(raw["created_at"]).replace("Z", "+00:00")).replace(tzinfo=None)
+            except ValueError:
+                created = None
+        key = (prob.id, int(raw.get("rating", 0)), created.isoformat() if created else None, raw.get("note") or "")
+        if key in existing_reviews:
+            continue
+        rev = Review(
+            problem_id=prob.id,
+            rating=int(raw.get("rating", 0)),
+            duration_sec=raw.get("duration_sec"),
+            note=raw.get("note") or "",
+        )
+        if created is not None:
+            rev.created_at = created
+        db.add(rev)
+        existing_reviews.add(key)
+
+    existing_solves = {
+        (s.platform, s.slug, s.created_at.isoformat() if s.created_at else None, s.verdict or "")
+        for s in db.query(Solve).all()
+    }
+    for raw in data.get("solves") or []:
+        platform = raw.get("platform") or "manual"
+        slug = raw.get("slug")
+        if not slug:
+            continue
+        created = None
+        if raw.get("created_at"):
+            try:
+                created = datetime.fromisoformat(str(raw["created_at"]).replace("Z", "+00:00")).replace(tzinfo=None)
+            except ValueError:
+                created = None
+        key = (platform, slug, created.isoformat() if created else None, raw.get("verdict") or "")
+        if key in existing_solves:
+            continue
+        sol = Solve(
+            platform=platform,
+            slug=slug,
+            title=raw.get("title") or slug,
+            difficulty=raw.get("difficulty") or "Medium",
+            verdict=raw.get("verdict") or "",
+            time_to_understand_s=raw.get("time_to_understand_s"),
+            time_to_write_s=raw.get("time_to_write_s"),
+            num_submissions=raw.get("num_submissions"),
+            hints_used=raw.get("hints_used"),
+            tags=_tags_str(raw.get("tags") or []),
+            source=raw.get("source") or "import",
+        )
+        if created is not None:
+            sol.created_at = created
+        db.add(sol)
+        existing_solves.add(key)
+
     for k, v in (data.get("settings") or {}).items():
         set_setting(db, k, str(v))
     db.commit()

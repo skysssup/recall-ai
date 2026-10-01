@@ -168,3 +168,29 @@ def test_forecast_and_csv_and_undo(client):
     leeches = client.get("/api/reviews/leeches")
     assert leeches.status_code == 200
     assert isinstance(leeches.json(), list)
+
+
+def test_daily_goal_validation(client):
+    bad = client.post("/api/settings", json={"daily_goal": 0})
+    assert bad.status_code == 400
+    ok = client.post("/api/settings", json={"daily_goal": 7})
+    assert ok.status_code == 200
+    assert ok.json()["daily_goal"] == 7
+
+
+def test_backup_round_trip_keeps_review_history(client):
+    created = client.post(
+        "/api/problems",
+        json={"title": "Two Sum", "platform": "leetcode", "slug": "two-sum-backup", "difficulty": "Easy"},
+    )
+    assert created.status_code in (200, 201)
+    pid = created.json()["id"]
+    rev = client.post(f"/api/problems/{pid}/reviews", json={"rating": 3, "duration_sec": 12})
+    assert rev.status_code in (200, 201)
+    bundle = client.get("/api/export").json()
+    assert any(r.get("problem_slug") == "two-sum-backup" for r in bundle.get("reviews", []))
+    again = client.post("/api/import", json={"data": bundle, "merge": True})
+    assert again.status_code == 200
+    bundle2 = client.get("/api/export").json()
+    reviews = [r for r in bundle2["reviews"] if r.get("problem_slug") == "two-sum-backup"]
+    assert len(reviews) >= 1

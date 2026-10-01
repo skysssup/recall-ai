@@ -36,6 +36,9 @@ def read_settings(db: Session = Depends(get_db)):
 @router.post("/settings")
 def write_settings(body: SettingsUpdate, db: Session = Depends(get_db)):
     if body.daily_goal is not None:
+        if not isinstance(body.daily_goal, int) or body.daily_goal < 1 or body.daily_goal > 100:
+            from fastapi import HTTPException
+            raise HTTPException(400, "daily_goal must be an integer from 1 to 100")
         set_setting(db, "daily_goal", str(body.daily_goal))
     set_setting(db, "onboarded", "true")
     db.commit()

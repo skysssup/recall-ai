@@ -19,15 +19,21 @@ export default function ReviewPage() {
   const [started, setStarted] = useState(Date.now())
   const [toast, setToast] = useState('')
   const [loading, setLoading] = useState(true)
+  const [queueError, setQueueError] = useState<string | null>(null)
   const [previews, setPreviews] = useState<Record<string, number>>({})
   const [lastReviewedId, setLastReviewedId] = useState<string | null>(null)
 
   const reload = useCallback(() => {
     setLoading(true)
+    setQueueError(null)
     api.queue(30).then((q) => {
       setQueue(q)
       setIdx(0)
       setStarted(Date.now())
+      setLoading(false)
+    }).catch((err) => {
+      setQueue([])
+      setQueueError(err instanceof Error ? err.message : 'Failed to load review queue')
       setLoading(false)
     })
   }, [])
@@ -100,6 +106,15 @@ export default function ReviewPage() {
   }, [submit, undo, idx, queue.length])
 
   if (loading) return <div className="empty" role="status">Building review queue…</div>
+  if (queueError) {
+    return (
+      <div className="empty" role="alert">
+        <h3>Could not load queue</h3>
+        <p className="muted">{queueError}</p>
+        <button className="btn" onClick={reload}>Retry</button>
+      </div>
+    )
+  }
 
   return (
     <div>
