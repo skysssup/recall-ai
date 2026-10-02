@@ -69,7 +69,7 @@ class ProblemOut(BaseModel):
 
 class ReviewIn(BaseModel):
     rating: int = Field(ge=1, le=4)
-    duration_sec: int = 0
+    duration_sec: int = Field(default=0, ge=0)
     note: str = ""
 
 
@@ -95,10 +95,10 @@ class SolveIn(BaseModel):
     url: Optional[str] = None
     difficulty: str = "Medium"
     verdict: str = "Accepted"
-    time_to_understand_s: Optional[int] = None
-    time_to_write_s: Optional[int] = None
-    num_submissions: int = 1
-    hints_used: int = 0
+    time_to_understand_s: Optional[int] = Field(default=None, ge=0)
+    time_to_write_s: Optional[int] = Field(default=None, ge=0)
+    num_submissions: int = Field(default=1, ge=1)
+    hints_used: int = Field(default=0, ge=0)
     tags: list[str] = []
     topic_name: Optional[str] = None
     auto_review: bool = True

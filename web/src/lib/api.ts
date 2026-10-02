@@ -111,10 +111,4 @@ export const api = {
       method: 'POST',
     })
   },
-  exportCsvUrl: () => {
-    const token = getApiToken()
-    const q = token ? `?token=${encodeURIComponent(token)}` : ''
-    // CSV download via <a href> cannot set headers; prefer authenticated fetch in UI.
-    return `/api/export/csv${q}`
-  },
 }

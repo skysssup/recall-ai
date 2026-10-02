@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ipaddress import ip_address
+from secrets import compare_digest
 
 from fastapi import Header, HTTPException, Request
 
@@ -25,27 +26,20 @@ def require_api_token(
     x_api_key: str | None = Header(default=None),
 ) -> str:
     token = extract_token(authorization, x_api_key)
-    if not token or token != settings.api_token:
+    if not token or not compare_digest(token.encode(), settings.api_token.encode()):
         raise HTTPException(401, "Invalid or missing API token")
     return token
 
 
 def client_is_loopback(request: Request) -> bool:
-    """True when the TCP peer is loopback (or the FastAPI TestClient)."""
-    host = ""
-    if request.client is not None:
-        host = (request.client.host or "").strip().lower()
-    if host in {"testclient", "localhost"}:
-        return True
+    """Accept only the actual loopback IP peer; headers cannot prove locality."""
+    host = request.client.host if request.client else ""
     try:
-        if ip_address(host).is_loopback:
-            return True
+        peer = ip_address(host)
+        return peer.is_loopback or bool(getattr(peer, "ipv4_mapped", None) and peer.ipv4_mapped.is_loopback)
     except ValueError:
-        pass
-    # Starlette TestClient sometimes reports as None/empty in middleware.
-    if not host and request.headers.get("user-agent", "").startswith("testclient"):
-        return True
-    return False
+        return False
+
 
 
 def mask_token(token: str) -> str:

@@ -31,6 +31,8 @@ async def lifespan(_app: FastAPI):
             f"Refusing to start: RECALL_HOST={settings.host!r} is not loopback. "
             "Bind 127.0.0.1 / localhost / ::1 only."
         )
+    if not settings.api_token.strip() or settings.api_token == "dev-token-change-me":
+        raise RuntimeError("Set RECALL_API_TOKEN to a private token before starting Recall")
     init_db()
     yield
 

@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     )
 
     database_url: str = f"sqlite:///{Path(__file__).resolve().parent.parent / 'recall.db'}"
-    api_token: str = "dev-token-change-me"
+    api_token: str = ""
     # NoDecode: accept comma-separated env strings without JSON parsing.
     cors_origins: Annotated[list[str], NoDecode] = list(_DEFAULT_CORS)
     host: str = "127.0.0.1"

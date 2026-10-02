@@ -21,12 +21,12 @@ router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
 
 @router.get("/queue", response_model=list[ProblemOut])
-def review_queue(limit: int = Query(20, le=100), db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
+def review_queue(limit: int = Query(20, ge=1, le=100), db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     return [problem_to_out(p) for p in due_problems(db, limit)]
 
 
 @router.get("/history")
-def review_history(limit: int = Query(50, le=200), db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
+def review_history(limit: int = Query(50, ge=1, le=200), db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     rows = (
         db.query(Review)
         .options(joinedload(Review.problem))

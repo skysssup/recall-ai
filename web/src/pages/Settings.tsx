@@ -6,6 +6,20 @@ export default function SettingsPage() {
   const [token, setToken] = useState(getApiToken())
   const [hint, setHint] = useState('')
   const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function perform(action: () => Promise<void>) {
+    if (busy) return
+    setBusy(true)
+    setMsg('')
+    try {
+      await action()
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : 'Operation failed')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   useEffect(() => {
     api
@@ -23,7 +37,6 @@ export default function SettingsPage() {
     setApiToken(token.trim())
     await api.saveSettings({ daily_goal: dailyGoal })
     setMsg('Saved')
-    setTimeout(() => setMsg(''), 1200)
   }
 
   async function doExport() {
@@ -82,10 +95,10 @@ export default function SettingsPage() {
               onChange={(e) => setDailyGoal(Number(e.target.value))}
             />
           </div>
-          <button className="btn primary" onClick={save}>
+          <button className="btn primary" disabled={busy} onClick={() => void perform(save)}>
             Save
           </button>
-          {msg && <p style={{ color: 'var(--accent)' }}>{msg}</p>}
+          {msg && <p role="status" style={{ color: 'var(--accent)' }}>{msg}</p>}
         </div>
 
         <div className="panel">
@@ -114,10 +127,10 @@ export default function SettingsPage() {
           tokens are never exported. CSV is a flat problem library for spreadsheets.
         </p>
         <div className="row">
-          <button className="btn" onClick={doExport}>
+          <button className="btn" disabled={busy} onClick={() => void perform(doExport)}>
             Download JSON
           </button>
-          <button className="btn" onClick={doExportCsv}>
+          <button className="btn" disabled={busy} onClick={() => void perform(doExportCsv)}>
             Download CSV
           </button>
           <label className="btn">
@@ -127,9 +140,11 @@ export default function SettingsPage() {
               type="file"
               accept="application/json,.json"
               hidden
+              disabled={busy}
               onChange={(e) => {
                 const f = e.target.files?.[0]
-                if (f) doImport(f)
+                e.target.value = ''
+                if (f) void perform(() => doImport(f))
               }}
             />
           </label>

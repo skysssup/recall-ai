@@ -18,7 +18,7 @@ def health():
 @router.get("/search")
 def search(
     q: str = Query(""),
-    limit: int = 30,
+    limit: int = Query(30, ge=1, le=200),
     db: Session = Depends(get_db),
     _token: str = Depends(require_api_token),
 ):

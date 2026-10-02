@@ -9,7 +9,7 @@ _fd, _path = tempfile.mkstemp(suffix=".db")
 os.close(_fd)
 os.environ["RECALL_DATABASE_URL"] = f"sqlite:///{_path}"
 os.environ["RECALL_API_TOKEN"] = "test-token"
-os.environ["RECALL_RELAX_LOOPBACK_CHECK"] = "true"
+os.environ["RECALL_RELAX_LOOPBACK_CHECK"] = "false"
 # Restrict CORS to the real app origins used in tests.
 os.environ["RECALL_CORS_ORIGINS"] = "http://localhost:5173,http://127.0.0.1:5173"
 
@@ -28,7 +28,7 @@ def _reset_db():
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
+    with TestClient(app, client=("127.0.0.1", 50000)) as c:
         c.headers.update(AUTH)
         yield c
 
@@ -36,7 +36,7 @@ def client():
 @pytest.fixture
 def raw_client():
     """TestClient without default auth headers."""
-    with TestClient(app) as c:
+    with TestClient(app, client=("127.0.0.1", 50000)) as c:
         yield c
 
 

@@ -15,6 +15,8 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+# Generate once and keep this value for later launches and both clients:
+export RECALL_API_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 # Prefer the module entrypoint — it always binds RECALL_HOST (loopback only):
 python -m app
 # Or:
@@ -27,12 +29,12 @@ All API routes except `/api/health` require the API token (`Authorization: Beare
 
 `RECALL_HOST` does not override direct Uvicorn CLI flags. Use the module entrypoint or bind the CLI explicitly to loopback.
 
-Optional env vars (prefix `RECALL_`):
+Set `RECALL_API_TOKEN` before starting; there is no shared default token. In PowerShell use `$env:RECALL_API_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"`. Other env vars are optional (prefix `RECALL_`):
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `RECALL_DATABASE_URL` | `sqlite:///…/recall.db` | SQLAlchemy URL |
-| `RECALL_API_TOKEN` | `dev-token-change-me` | Shared secret for web UI + extension |
+| `RECALL_API_TOKEN` | required | Shared secret for web UI + extension |
 | `RECALL_HOST` | `127.0.0.1` | Bind host checked at startup |
 | `RECALL_PORT` | `8787` | Bind port for `python -m app` |
 | `RECALL_CORS_ORIGINS` | `http://localhost:5173,…` | Exact browser origins (comma-separated; no wildcards) |
@@ -59,6 +61,8 @@ Extension `host_permissions` cover the local API, so CORS does not need `chrome-
 
 - **Export** includes topics, edges, problems (with `due_at` / `last_reviewed_at`), reviews, solves, and non-secret settings. The live API token is never exported.
 - **Import** (`merge: true`, default) upserts topics by name and problems by `(platform, slug)`. Review rows are skipped when `(problem, rating, created_at, note)` already exists; solves similarly by `(platform, slug, created_at, verdict)`. Imported solves are re-linked to problems by platform/slug. Preference settings in the bundle overwrite local keys; `api_token` / `api_key` keys are ignored.
+- Imports validate record types, finite scheduling values, dates, duplicate keys, and preference ranges before writing. `merge: false` requires every export section and replaces the database contents in one transaction; export a backup first. Merge accepts explicit empty notes/tags and null dates. Offset timestamps are normalized to UTC, and capture event IDs survive backup restoration.
+- CSV prefixes formula-like text cells for spreadsheet safety.
 - Problems are flushed before reviews/solves are linked so a fresh empty database restores full history.
 
 ## How scheduling works

@@ -24,7 +24,7 @@ def list_problems(
     topic: str | None = None,
     difficulty: str | None = None,
     due_only: bool = False,
-    limit: int = Query(200, le=500),
+    limit: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     _token: str = Depends(require_api_token),
 ):
