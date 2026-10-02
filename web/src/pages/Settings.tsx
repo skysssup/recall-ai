@@ -1,19 +1,26 @@
 import { useEffect, useState } from 'react'
-import { api } from '../lib/api'
+import { api, getApiToken, setApiToken } from '../lib/api'
 
 export default function SettingsPage() {
   const [dailyGoal, setDailyGoal] = useState(10)
-  const [token, setToken] = useState('')
+  const [token, setToken] = useState(getApiToken())
+  const [hint, setHint] = useState('')
   const [msg, setMsg] = useState('')
 
   useEffect(() => {
-    api.settings().then((s) => {
-      setDailyGoal(s.daily_goal)
-      setToken(s.api_token)
-    })
+    api
+      .settings()
+      .then((s) => {
+        setDailyGoal(s.daily_goal)
+        setHint(s.api_token_hint || '')
+      })
+      .catch(() => {
+        setMsg('API token missing or rejected — paste RECALL_API_TOKEN below')
+      })
   }, [])
 
   async function save() {
+    setApiToken(token.trim())
     await api.saveSettings({ daily_goal: dailyGoal })
     setMsg('Saved')
     setTimeout(() => setMsg(''), 1200)
@@ -26,6 +33,21 @@ export default function SettingsPage() {
     const a = document.createElement('a')
     a.href = url
     a.download = `recall-export-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function doExportCsv() {
+    const token = getApiToken()
+    const res = await fetch('/api/export/csv', {
+      headers: token ? { 'X-API-Key': token } : {},
+    })
+    if (!res.ok) throw new Error(await res.text())
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'recall-problems.csv'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -51,35 +73,65 @@ export default function SettingsPage() {
           <h3>Preferences</h3>
           <div className="field">
             <label>Daily review goal</label>
-            <input className="input" type="number" min={1} max={100} value={dailyGoal} onChange={(e) => setDailyGoal(Number(e.target.value))} />
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={100}
+              value={dailyGoal}
+              onChange={(e) => setDailyGoal(Number(e.target.value))}
+            />
           </div>
-          <button className="btn primary" onClick={save}>Save</button>
+          <button className="btn primary" onClick={save}>
+            Save
+          </button>
           {msg && <p style={{ color: 'var(--accent)' }}>{msg}</p>}
         </div>
 
         <div className="panel">
-          <h3>Extension API token</h3>
+          <h3>API token</h3>
           <p className="muted" style={{ marginTop: 0 }}>
-            Paste this into the browser extension popup along with <code>http://127.0.0.1:8787</code>.
-            Override with env <code>RECALL_API_TOKEN</code>.
+            The server never returns the raw token. Set <code>RECALL_API_TOKEN</code> when starting
+            the backend, paste the same value here (stored only in this browser) and in the
+            extension popup. Server hint: <code>{hint || '…'}</code>
           </p>
-          <input className="input" readOnly value={token} onFocus={(e) => e.target.select()} />
+          <input
+            className="input"
+            type="password"
+            autoComplete="off"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Paste RECALL_API_TOKEN"
+          />
         </div>
       </div>
 
       <div className="panel" style={{ marginTop: 16 }}>
         <h3>Export / Import</h3>
-        <p className="muted">Full JSON backup, or a flat CSV of the problem library for spreadsheets.</p>
+        <p className="muted">
+          Full JSON backup (merge on import upserts by platform/slug; review/solve history is
+          keyed by platform, slug, timestamp, and rating/verdict — duplicates are skipped). API
+          tokens are never exported. CSV is a flat problem library for spreadsheets.
+        </p>
         <div className="row">
-          <button className="btn" onClick={doExport}>Download JSON</button>
-          <a className="btn" href={api.exportCsvUrl()} download="recall-problems.csv">Download CSV</a>
+          <button className="btn" onClick={doExport}>
+            Download JSON
+          </button>
+          <button className="btn" onClick={doExportCsv}>
+            Download CSV
+          </button>
           <label className="btn">
             Import JSON
             <span className="sr-only">Upload a Recall JSON backup</span>
-            <input type="file" accept="application/json,.json" hidden onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) doImport(f)
-            }} />
+            <input
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) doImport(f)
+              }}
+            />
           </label>
         </div>
       </div>
@@ -88,11 +140,36 @@ export default function SettingsPage() {
         <h3>Keyboard shortcuts</h3>
         <table className="table">
           <tbody>
-            <tr><td><span className="badge">⌘/Ctrl K</span></td><td>Search</td></tr>
-            <tr><td><span className="badge">G then D/R/P/G/A/L/S</span></td><td>Navigate pages</td></tr>
-            <tr><td><span className="badge">1 2 3 4</span></td><td>Rate current review card</td></tr>
-            <tr><td><span className="badge">← →</span></td><td>Move in review queue</td></tr>
-            <tr><td><span className="badge">U</span></td><td>Undo last review</td></tr>
+            <tr>
+              <td>
+                <span className="badge">⌘/Ctrl K</span>
+              </td>
+              <td>Search</td>
+            </tr>
+            <tr>
+              <td>
+                <span className="badge">G then D/R/P/G/A/L/S</span>
+              </td>
+              <td>Navigate pages</td>
+            </tr>
+            <tr>
+              <td>
+                <span className="badge">1 2 3 4</span>
+              </td>
+              <td>Rate current review card</td>
+            </tr>
+            <tr>
+              <td>
+                <span className="badge">← →</span>
+              </td>
+              <td>Move in review queue</td>
+            </tr>
+            <tr>
+              <td>
+                <span className="badge">U</span>
+              </td>
+              <td>Undo last review</td>
+            </tr>
           </tbody>
         </table>
       </div>

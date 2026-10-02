@@ -1,13 +1,15 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
+from .auth import client_is_loopback
 from .config import settings
 from .db import init_db
 from .routers import analytics, capture, export_import, meta, problems, reviews, topics
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 
 
 def _is_loopback(host: str) -> bool:
@@ -34,16 +36,27 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow configured origins plus localhost / extension origins.
-_origins = list(settings.cors_origins)
+# Exact configured origins only — no wildcard localhost/extension regex.
+_origins = [o for o in settings.cors_origins if o and "*" not in o]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
-    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|chrome-extension://.*)$",
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-CSRF-Token"],
 )
+
+
+@app.middleware("http")
+async def enforce_loopback_client(request: Request, call_next):
+    """Reject peers that are not on loopback even if Uvicorn was bound broadly."""
+    if not settings.relax_loopback_check and not client_is_loopback(request):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Recall accepts loopback clients only"},
+        )
+    return await call_next(request)
+
 
 app.include_router(meta.router)
 app.include_router(topics.router)

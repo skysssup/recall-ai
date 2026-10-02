@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+from ..auth import require_api_token
 from sqlalchemy.orm import Session, joinedload
 
 from ..db import get_db
@@ -24,6 +26,7 @@ def list_problems(
     due_only: bool = False,
     limit: int = Query(200, le=500),
     db: Session = Depends(get_db),
+    _token: str = Depends(require_api_token),
 ):
     query = db.query(Problem).options(joinedload(Problem.topic))
     if topic:
@@ -50,7 +53,7 @@ def list_problems(
 
 
 @router.post("", response_model=ProblemOut, status_code=201)
-def create_problem(body: ProblemCreate, db: Session = Depends(get_db)):
+def create_problem(body: ProblemCreate, db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     slug = body.slug or slugify(body.title)
     existing = (
         db.query(Problem)
@@ -78,7 +81,7 @@ def create_problem(body: ProblemCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{problem_id}", response_model=ProblemOut)
-def get_problem(problem_id: str, db: Session = Depends(get_db)):
+def get_problem(problem_id: str, db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     p = db.query(Problem).options(joinedload(Problem.topic)).filter(Problem.id == problem_id).first()
     if not p:
         raise HTTPException(404, "Problem not found")
@@ -86,7 +89,7 @@ def get_problem(problem_id: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/{problem_id}", response_model=ProblemOut)
-def update_problem(problem_id: str, body: ProblemUpdate, db: Session = Depends(get_db)):
+def update_problem(problem_id: str, body: ProblemUpdate, db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     p = db.get(Problem, problem_id)
     if not p:
         raise HTTPException(404, "Problem not found")
@@ -109,7 +112,7 @@ def update_problem(problem_id: str, body: ProblemUpdate, db: Session = Depends(g
 
 
 @router.delete("/{problem_id}")
-def delete_problem(problem_id: str, db: Session = Depends(get_db)):
+def delete_problem(problem_id: str, db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     p = db.get(Problem, problem_id)
     if not p:
         raise HTTPException(404, "Problem not found")
@@ -119,7 +122,7 @@ def delete_problem(problem_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{problem_id}/reviews", response_model=ReviewOut)
-def review_problem(problem_id: str, body: ReviewIn, db: Session = Depends(get_db)):
+def review_problem(problem_id: str, body: ReviewIn, db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     p = db.get(Problem, problem_id)
     if not p:
         raise HTTPException(404, "Problem not found")

@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
+
+from ..auth import require_api_token
 from sqlalchemy.orm import Session, joinedload
 
 from ..db import get_db
@@ -13,7 +15,7 @@ router = APIRouter(prefix="/api", tags=["analytics"])
 
 
 @router.get("/dashboard", response_model=DashboardOut)
-def dashboard(db: Session = Depends(get_db)):
+def dashboard(db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     problems = db.query(Problem).options(joinedload(Problem.topic)).all()
     topics = db.query(Topic).all()
@@ -62,7 +64,7 @@ def dashboard(db: Session = Depends(get_db)):
 
 
 @router.get("/analytics/overview")
-def analytics_overview(db: Session = Depends(get_db)):
+def analytics_overview(db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     topics = db.query(Topic).order_by(Topic.name).all()
     problems = db.query(Problem).all()

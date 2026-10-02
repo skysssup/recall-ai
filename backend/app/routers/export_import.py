@@ -6,6 +6,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..auth import require_api_token
 from ..db import get_db
 from ..graph import ensure_edge
 from ..models import Problem, Review, Setting, Solve, Topic, TopicEdge
@@ -14,15 +15,32 @@ from ..services import _tags_list, _tags_str, find_topic, set_setting
 router = APIRouter(prefix="/api", tags=["export"])
 
 
+def _parse_ts(raw) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(str(raw).replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
 @router.get("/export")
-def export_data(db: Session = Depends(get_db)):
+def export_data(
+    db: Session = Depends(get_db),
+    _token: str = Depends(require_api_token),
+):
     topics = db.query(Topic).all()
     edges = db.query(TopicEdge).all()
     id_to_name = {t.id: t.name for t in topics}
     problems = db.query(Problem).all()
     reviews = db.query(Review).all()
     solves = db.query(Solve).all()
-    settings = {s.key: s.value for s in db.query(Setting).all()}
+    # Never export the live API token — only non-secret preference keys.
+    settings = {
+        s.key: s.value
+        for s in db.query(Setting).all()
+        if s.key not in {"api_token", "api_key"}
+    }
     bundle = {
         "version": 1,
         "exported_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -94,8 +112,11 @@ def export_data(db: Session = Depends(get_db)):
 
 
 @router.get("/export/download")
-def export_download(db: Session = Depends(get_db)):
-    bundle = export_data(db)
+def export_download(
+    db: Session = Depends(get_db),
+    _token: str = Depends(require_api_token),
+):
+    bundle = export_data(db, _token)
     body = json.dumps(bundle, indent=2)
     return PlainTextResponse(
         body,
@@ -104,10 +125,11 @@ def export_download(db: Session = Depends(get_db)):
     )
 
 
-
-
 @router.get("/export/csv")
-def export_problems_csv(db: Session = Depends(get_db)):
+def export_problems_csv(
+    db: Session = Depends(get_db),
+    _token: str = Depends(require_api_token),
+):
     """Flat CSV of the problem library — handy for spreadsheets."""
     import csv
     import io
@@ -164,13 +186,25 @@ def export_problems_csv(db: Session = Depends(get_db)):
         headers={"Content-Disposition": "attachment; filename=recall-problems.csv"},
     )
 
+
 class ImportBody(BaseModel):
     data: dict
     merge: bool = True
 
 
 @router.post("/import")
-def import_data(body: ImportBody, db: Session = Depends(get_db)):
+def import_data(
+    body: ImportBody,
+    db: Session = Depends(get_db),
+    _token: str = Depends(require_api_token),
+):
+    """
+    Merge (default) or replace-into semantics for a Recall export bundle.
+
+    Merge keeps existing rows and upserts by platform/slug (problems) or
+    (platform, slug, created_at, rating/verdict) for history. Settings keys
+    in the bundle overwrite local preference values; API tokens are ignored.
+    """
     data = body.data
     if not isinstance(data, dict) or "problems" not in data:
         raise HTTPException(400, "Invalid export bundle")
@@ -196,6 +230,9 @@ def import_data(body: ImportBody, db: Session = Depends(get_db)):
         if a and b:
             ensure_edge(db, a, b)
 
+    # Persist problems BEFORE querying them for review/solve linking.
+    # SessionLocal uses autoflush=False, so pending inserts are invisible
+    # to subsequent queries until an explicit flush.
     for raw in data.get("problems", []):
         platform = raw.get("platform", "manual")
         slug = raw.get("slug")
@@ -205,12 +242,28 @@ def import_data(body: ImportBody, db: Session = Depends(get_db)):
             db.query(Problem).filter(Problem.platform == platform, Problem.slug == slug).first()
         )
         topic = name_to_topic.get(raw.get("topic")) if raw.get("topic") else None
+        due_at = _parse_ts(raw.get("due_at"))
+        last_reviewed_at = _parse_ts(raw.get("last_reviewed_at"))
         if existing and body.merge:
             existing.title = raw.get("title", existing.title)
             existing.notes = raw.get("notes", existing.notes) or existing.notes
             existing.tags = _tags_str(raw.get("tags") or _tags_list(existing.tags))
             if topic:
                 existing.topic_id = topic.id
+            if "stability" in raw:
+                existing.stability = float(raw.get("stability", existing.stability))
+            if "difficulty_score" in raw:
+                existing.difficulty_score = float(
+                    raw.get("difficulty_score", existing.difficulty_score)
+                )
+            if "review_count" in raw:
+                existing.review_count = int(raw.get("review_count", existing.review_count))
+            if "lapses" in raw:
+                existing.lapses = int(raw.get("lapses", existing.lapses))
+            if due_at is not None:
+                existing.due_at = due_at
+            if last_reviewed_at is not None:
+                existing.last_reviewed_at = last_reviewed_at
         elif not existing:
             db.add(
                 Problem(
@@ -226,9 +279,12 @@ def import_data(body: ImportBody, db: Session = Depends(get_db)):
                     difficulty_score=float(raw.get("difficulty_score", 5.0)),
                     review_count=int(raw.get("review_count", 0)),
                     lapses=int(raw.get("lapses", 0)),
+                    due_at=due_at,
+                    last_reviewed_at=last_reviewed_at,
                 )
             )
-    # Restore review / solve history without duplicating identical rows.
+    db.flush()
+
     problems_by_key = {
         (p.platform, p.slug): p for p in db.query(Problem).all() if p.slug
     }
@@ -242,13 +298,13 @@ def import_data(body: ImportBody, db: Session = Depends(get_db)):
         prob = problems_by_key.get((platform, slug)) if platform and slug else None
         if not prob:
             continue
-        created = None
-        if raw.get("created_at"):
-            try:
-                created = datetime.fromisoformat(str(raw["created_at"]).replace("Z", "+00:00")).replace(tzinfo=None)
-            except ValueError:
-                created = None
-        key = (prob.id, int(raw.get("rating", 0)), created.isoformat() if created else None, raw.get("note") or "")
+        created = _parse_ts(raw.get("created_at"))
+        key = (
+            prob.id,
+            int(raw.get("rating", 0)),
+            created.isoformat() if created else None,
+            raw.get("note") or "",
+        )
         if key in existing_reviews:
             continue
         rev = Review(
@@ -271,16 +327,13 @@ def import_data(body: ImportBody, db: Session = Depends(get_db)):
         slug = raw.get("slug")
         if not slug:
             continue
-        created = None
-        if raw.get("created_at"):
-            try:
-                created = datetime.fromisoformat(str(raw["created_at"]).replace("Z", "+00:00")).replace(tzinfo=None)
-            except ValueError:
-                created = None
+        created = _parse_ts(raw.get("created_at"))
         key = (platform, slug, created.isoformat() if created else None, raw.get("verdict") or "")
         if key in existing_solves:
             continue
+        prob = problems_by_key.get((platform, slug))
         sol = Solve(
+            problem_id=prob.id if prob else None,
             platform=platform,
             slug=slug,
             title=raw.get("title") or slug,
@@ -299,6 +352,8 @@ def import_data(body: ImportBody, db: Session = Depends(get_db)):
         existing_solves.add(key)
 
     for k, v in (data.get("settings") or {}).items():
+        if k in {"api_token", "api_key"}:
+            continue
         set_setting(db, k, str(v))
     db.commit()
     return {"ok": True}

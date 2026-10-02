@@ -67,8 +67,8 @@ def test_search(client):
     assert "topic" in kinds or "problem" in kinds
 
 
-def test_capture_requires_token(client):
-    r = client.post(
+def test_capture_requires_token(client, raw_client):
+    r = raw_client.post(
         "/api/capture/solve",
         json={"platform": "leetcode", "slug": "two-sum", "title": "Two Sum", "verdict": "Accepted"},
     )
@@ -86,7 +86,6 @@ def test_capture_requires_token(client):
             "client_event_id": "evt-1",
             "tags": ["Array"],
         },
-        headers={"X-API-Key": "test-token"},
     )
     assert r.status_code == 200, r.text
     assert r.json()["applied_rating"] is not None

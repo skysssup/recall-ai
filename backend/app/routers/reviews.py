@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+from ..auth import require_api_token
 from sqlalchemy.orm import Session, joinedload
 
 from ..db import get_db
@@ -19,12 +21,12 @@ router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
 
 @router.get("/queue", response_model=list[ProblemOut])
-def review_queue(limit: int = Query(20, le=100), db: Session = Depends(get_db)):
+def review_queue(limit: int = Query(20, le=100), db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     return [problem_to_out(p) for p in due_problems(db, limit)]
 
 
 @router.get("/history")
-def review_history(limit: int = Query(50, le=200), db: Session = Depends(get_db)):
+def review_history(limit: int = Query(50, le=200), db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     rows = (
         db.query(Review)
         .options(joinedload(Review.problem))
@@ -47,7 +49,7 @@ def review_history(limit: int = Query(50, le=200), db: Session = Depends(get_db)
 
 
 @router.get("/stats")
-def review_stats(db: Session = Depends(get_db)):
+def review_stats(db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     since = now - timedelta(days=30)
     rows = db.query(Review).filter(Review.created_at >= since).all()
@@ -61,7 +63,7 @@ def review_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/forecast")
-def review_forecast(days: int = Query(14, ge=1, le=90), db: Session = Depends(get_db)):
+def review_forecast(days: int = Query(14, ge=1, le=90), db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     """Projected due counts for the next N days (no new reviews assumed)."""
     series = build_forecast(db, days=days)
     return {
@@ -74,13 +76,13 @@ def review_forecast(days: int = Query(14, ge=1, le=90), db: Session = Depends(ge
 @router.get("/leeches", response_model=list[ProblemOut])
 def review_leeches(
     threshold: int | None = Query(None, ge=1, le=50),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db), _token: str = Depends(require_api_token),
 ):
     return [problem_to_out(p) for p in list_leeches(db, threshold)]
 
 
 @router.get("/preview/{problem_id}")
-def review_preview(problem_id: str, db: Session = Depends(get_db)):
+def review_preview(problem_id: str, db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     p = db.get(Problem, problem_id)
     if not p:
         raise HTTPException(404, "Problem not found")
@@ -91,7 +93,7 @@ def review_preview(problem_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/undo")
-def review_undo(problem_id: str | None = Query(None), db: Session = Depends(get_db)):
+def review_undo(problem_id: str | None = Query(None), db: Session = Depends(get_db), _token: str = Depends(require_api_token)):
     """Undo the most recent review (optionally scoped to a problem) and rebuild card state."""
     result = undo_last_review(db, problem_id=problem_id)
     if result is None:

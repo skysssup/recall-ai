@@ -375,6 +375,45 @@ def set_setting(db: Session, key: str, value: str) -> None:
 
 
 
+def rebuild_topic_from_history(db: Session, topic: Optional[Topic]) -> None:
+    """
+    Recompute topic stability, difficulty, and timestamps from remaining
+    review history across all problems in the topic (cold-start + replay).
+    """
+    if topic is None:
+        return
+    problems = db.query(Problem).filter(Problem.topic_id == topic.id).all()
+    problem_ids = [p.id for p in problems]
+    topic.stability = 1.0
+    topic.difficulty = 5.0
+    topic.practice_count = 0
+    topic.last_reviewed_at = None
+    topic.next_review_at = None
+    topic.retrievability = 1.0
+    if not problem_ids:
+        return
+    reviews = (
+        db.query(Review)
+        .filter(Review.problem_id.in_(problem_ids))
+        .order_by(Review.created_at.asc())
+        .all()
+    )
+    for rev in reviews:
+        tstate = apply_review(
+            stability=topic.stability,
+            difficulty=topic.difficulty,
+            rating=rev.rating,
+            review_count=topic.practice_count,
+            last_review=topic.last_reviewed_at,
+            current=rev.created_at,
+        )
+        topic.stability = tstate.stability
+        topic.difficulty = tstate.difficulty
+        topic.last_reviewed_at = tstate.last_reviewed_at
+        topic.practice_count = tstate.review_count
+    refresh_topic_stats(db, topic)
+
+
 def undo_last_review(db: Session, problem_id: Optional[str] = None) -> Optional[dict]:
     """
     Remove the most recent review and rebuild card state from remaining history.
@@ -394,6 +433,7 @@ def undo_last_review(db: Session, problem_id: Optional[str] = None) -> Optional[
         db.flush()
         return {"undone_review_id": latest.id, "problem_id": latest.problem_id}
 
+    topic = problem.topic
     summary = {
         "undone_review_id": latest.id,
         "problem_id": problem.id,
@@ -436,8 +476,8 @@ def undo_last_review(db: Session, problem_id: Optional[str] = None) -> Optional[
         problem.review_count = state.review_count
         problem.lapses = state.lapses
 
-    if problem.topic:
-        refresh_topic_stats(db, problem.topic)
+    if topic:
+        rebuild_topic_from_history(db, topic)
     db.flush()
     return summary
 
