@@ -6,6 +6,8 @@ Capture solves, rate reviews 1–4, and browse due cards and topic health. Sched
 
 ## Quick start
 
+Use Python 3.10 or later and Node.js 22.12 or later. Commands below assume a clone of this repository. On Windows, activate the backend environment with `.venv\Scripts\Activate.ps1` instead of `source`.
+
 ### Backend
 
 ```bash
@@ -23,6 +25,8 @@ Bind `127.0.0.1` only. Startup refuses every non-loopback `RECALL_HOST`, and eac
 
 All API routes except `/api/health` require the API token (`Authorization: Bearer …` or `X-API-Key`). The settings endpoint never returns the raw token.
 
+`RECALL_HOST` does not override direct Uvicorn CLI flags. Use the module entrypoint or bind the CLI explicitly to loopback.
+
 Optional env vars (prefix `RECALL_`):
 
 | Variable | Default | Purpose |
@@ -37,7 +41,7 @@ Optional env vars (prefix `RECALL_`):
 
 ```bash
 cd web
-npm install
+npm ci
 npm run dev
 ```
 
@@ -71,7 +75,7 @@ Ratings 1–4 (Again / Hard / Good / Easy) update `S` and `D`. Next due is when 
 
 ```bash
 cd backend
-PYTHONPATH=. .venv/bin/pytest -q
+python -m pytest -q
 ```
 
 ## Layout

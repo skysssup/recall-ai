@@ -6,5 +6,8 @@ def test_is_loopback_hosts():
     assert _is_loopback("localhost")
     assert _is_loopback("::1")
     assert _is_loopback("127.1.2.3")
+    assert not _is_loopback("127.evil.example")
+    assert not _is_loopback("127.999.999.999")
+    assert _is_loopback("127.1.2.3")
     assert not _is_loopback("0.0.0.0")
     assert not _is_loopback("192.168.1.1")

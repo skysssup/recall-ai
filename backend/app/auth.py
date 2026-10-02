@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ipaddress import ip_address
+
 from fastapi import Header, HTTPException, Request
 
 from .config import settings
@@ -33,8 +35,13 @@ def client_is_loopback(request: Request) -> bool:
     host = ""
     if request.client is not None:
         host = (request.client.host or "").strip().lower()
-    if host in {"testclient", "localhost", "::1"} or host.startswith("127."):
+    if host in {"testclient", "localhost"}:
         return True
+    try:
+        if ip_address(host).is_loopback:
+            return True
+    except ValueError:
+        pass
     # Starlette TestClient sometimes reports as None/empty in middleware.
     if not host and request.headers.get("user-agent", "").startswith("testclient"):
         return True

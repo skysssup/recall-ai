@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from ipaddress import ip_address
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,12 @@ APP_VERSION = "1.1.1"
 
 def _is_loopback(host: str) -> bool:
     h = (host or "").strip().lower()
-    return h in {"127.0.0.1", "localhost", "::1"} or h.startswith("127.")
+    if h == "localhost":
+        return True
+    try:
+        return ip_address(h).is_loopback
+    except ValueError:
+        return False
 
 
 @asynccontextmanager
