@@ -228,6 +228,15 @@ def import_data(
     if not body.merge and not all(key in body.data for key in
                                   ("topics", "edges", "problems", "reviews", "solves", "settings")):
         raise HTTPException(400, "Replacement requires a complete export bundle")
+    problem_keys = {(p.platform, p.slug) for p in backup.problems}
+    if body.merge:
+        problem_keys.update(db.query(Problem.platform, Problem.slug).all())
+    for review in backup.reviews:
+        if (review.problem_platform, review.problem_slug) not in problem_keys:
+            raise HTTPException(
+                400,
+                f"Review references missing problem: {review.problem_platform}/{review.problem_slug}",
+            )
     data = backup.model_dump(mode="json", exclude_unset=True)
     if not body.merge:
         for model in (Review, Solve, Problem, TopicEdge, Topic, Setting):
@@ -269,9 +278,7 @@ def import_data(
     # to subsequent queries until an explicit flush.
     for raw in data.get("problems", []):
         platform = raw.get("platform", "manual")
-        slug = raw.get("slug")
-        if not slug:
-            continue
+        slug = raw["slug"]
         existing = (
             db.query(Problem).filter(Problem.platform == platform, Problem.slug == slug).first()
         )
@@ -306,7 +313,7 @@ def import_data(
         elif not existing:
             db.add(
                 Problem(
-                    title=raw.get("title") or slug,
+                    title=raw.get("title", slug),
                     platform=platform,
                     slug=slug,
                     url=raw.get("url"),
@@ -326,18 +333,14 @@ def import_data(
     db.flush()
 
     problems_by_key = {
-        (p.platform, p.slug): p for p in db.query(Problem).all() if p.slug
+        (p.platform, p.slug): p for p in db.query(Problem).all()
     }
     existing_reviews = {
         (r.problem_id, r.rating, r.created_at.isoformat() if r.created_at else None, r.note or "")
         for r in db.query(Review).all()
     }
     for raw in data.get("reviews") or []:
-        platform = raw.get("problem_platform")
-        slug = raw.get("problem_slug")
-        prob = problems_by_key.get((platform, slug)) if platform and slug else None
-        if not prob:
-            continue
+        prob = problems_by_key[(raw["problem_platform"], raw["problem_slug"])]
         created = _parse_ts(raw.get("created_at"))
         key = (
             prob.id,
@@ -358,42 +361,40 @@ def import_data(
         db.add(rev)
         existing_reviews.add(key)
 
-    event_ids = {s.client_event_id for s in db.query(Solve).all() if s.client_event_id}
+    event_ids = {s.client_event_id for s in db.query(Solve).all() if s.client_event_id is not None}
     existing_solves = {
         (s.platform, s.slug, s.created_at.isoformat() if s.created_at else None, s.verdict or "")
         for s in db.query(Solve).all()
     }
     for raw in data.get("solves") or []:
-        platform = raw.get("platform") or "manual"
-        slug = raw.get("slug")
-        if not slug:
-            continue
+        platform = raw.get("platform", "manual")
+        slug = raw["slug"]
         created = _parse_ts(raw.get("created_at"))
         key = (platform, slug, created.isoformat() if created else None, raw.get("verdict") or "")
         event_id = raw.get("client_event_id")
-        if key in existing_solves or (event_id and event_id in event_ids):
+        if key in existing_solves or (event_id is not None and event_id in event_ids):
             continue
         prob = problems_by_key.get((platform, slug))
         sol = Solve(
             problem_id=prob.id if prob else None,
             platform=platform,
             slug=slug,
-            title=raw.get("title") or slug,
-            difficulty=raw.get("difficulty") or "Medium",
-            verdict=raw.get("verdict") or "",
+            title=raw.get("title", slug),
+            difficulty=raw.get("difficulty", "Medium"),
+            verdict=raw.get("verdict", ""),
             time_to_understand_s=raw.get("time_to_understand_s"),
             time_to_write_s=raw.get("time_to_write_s"),
             num_submissions=raw.get("num_submissions", 1),
             hints_used=raw.get("hints_used", 0),
             tags=_tags_str(raw.get("tags") or []),
-            source=raw.get("source") or "import",
+            source=raw.get("source", "import"),
             client_event_id=event_id,
         )
         if created is not None:
             sol.created_at = created
         db.add(sol)
         existing_solves.add(key)
-        if event_id:
+        if event_id is not None:
             event_ids.add(event_id)
 
     for k, v in (data.get("settings") or {}).items():

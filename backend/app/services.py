@@ -13,7 +13,6 @@ from .config import settings
 from .scheduler import (
     apply_review,
     forecast_due_counts,
-    is_leech,
     priority_score,
     preview_intervals,
     recall_from_solve,
@@ -382,6 +381,7 @@ def rebuild_topic_from_history(db: Session, topic: Optional[Topic]) -> None:
     """
     if topic is None:
         return
+    db.flush()
     problems = db.query(Problem).filter(Problem.topic_id == topic.id).all()
     problem_ids = [p.id for p in problems]
     topic.stability = 1.0

@@ -24,9 +24,9 @@ class TopicOut(BaseModel):
 
 
 class ProblemCreate(BaseModel):
-    title: str
-    platform: str = "manual"
-    slug: Optional[str] = None
+    title: str = Field(min_length=1, max_length=240)
+    platform: str = Field(default="manual", min_length=1, max_length=40)
+    slug: Optional[str] = Field(default=None, min_length=1, max_length=240)
     url: Optional[str] = None
     difficulty: str = "Medium"
     topic_name: Optional[str] = None
@@ -35,7 +35,7 @@ class ProblemCreate(BaseModel):
 
 
 class ProblemUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(default=None, min_length=1, max_length=240)
     url: Optional[str] = None
     difficulty: Optional[str] = None
     topic_name: Optional[str] = None
@@ -88,10 +88,10 @@ class ReviewOut(BaseModel):
 
 
 class SolveIn(BaseModel):
-    client_event_id: Optional[str] = None
-    platform: str = "manual"
-    slug: str
-    title: str = ""
+    client_event_id: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    platform: str = Field(default="manual", min_length=1, max_length=40)
+    slug: str = Field(min_length=1, max_length=240)
+    title: str = Field(default="", max_length=240)
     url: Optional[str] = None
     difficulty: str = "Medium"
     verdict: str = "Accepted"
@@ -125,14 +125,6 @@ class SolveOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class SearchHit(BaseModel):
-    kind: str
-    id: str
-    title: str
-    subtitle: str = ""
-    score: float = 0.0
-
-
 class DashboardOut(BaseModel):
     due_count: int
     learned_count: int
@@ -144,14 +136,3 @@ class DashboardOut(BaseModel):
     weak_topics: list[dict[str, Any]]
     upcoming: list[ProblemOut]
     recent_solves: list[SolveOut]
-
-
-class ExportBundle(BaseModel):
-    version: int = 1
-    exported_at: str
-    topics: list[dict[str, Any]]
-    edges: list[dict[str, str]]
-    problems: list[dict[str, Any]]
-    reviews: list[dict[str, Any]]
-    solves: list[dict[str, Any]]
-    settings: dict[str, str]

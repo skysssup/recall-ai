@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from typing import Iterable
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from .models import Topic, TopicEdge
+from .scheduler import retrievability
 
 
 def adjacency(db: Session) -> tuple[dict[str, list[str]], dict[str, str]]:
@@ -95,6 +96,7 @@ def topological_layers(db: Session) -> list[list[str]]:
 
 
 def serialize_graph(db: Session) -> dict:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     topics = db.query(Topic).order_by(Topic.name).all()
     edges = db.query(TopicEdge).all()
     id_to_name = {t.id: t.name for t in topics}
@@ -106,7 +108,7 @@ def serialize_graph(db: Session) -> dict:
                 "description": t.description,
                 "stability": t.stability,
                 "difficulty": t.difficulty,
-                "retrievability": t.retrievability,
+                "retrievability": round(retrievability(t.stability, t.last_reviewed_at, now), 4),
                 "practice_count": t.practice_count,
                 "last_reviewed_at": t.last_reviewed_at.isoformat() + "Z" if t.last_reviewed_at else None,
             }

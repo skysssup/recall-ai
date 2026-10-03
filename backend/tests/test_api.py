@@ -193,3 +193,10 @@ def test_backup_round_trip_keeps_review_history(client):
     bundle2 = client.get("/api/export").json()
     reviews = [r for r in bundle2["reviews"] if r.get("problem_slug") == "two-sum-backup"]
     assert len(reviews) >= 1
+
+
+def test_app_version_matches_package_version(client):
+    from app import __version__
+    from app.main import APP_VERSION
+
+    assert client.get("/openapi.json").json()["info"]["version"] == APP_VERSION == __version__

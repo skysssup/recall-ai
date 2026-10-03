@@ -256,18 +256,20 @@ def forecast_due_counts(
     current: Optional[datetime] = None,
 ) -> list[dict]:
     """
-    Project how many cards would be due each day assuming no new reviews.
+    Project how many cards would be due each UTC calendar day without new reviews.
 
     Each card is (stability, last_reviewed_at, due_at).
     A card counts on the first day where due_at <= day_end or R < target.
     """
     now = _now(current)
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     days = max(1, min(90, days))
     # day_offset -> set of card indices first due that day
     buckets: dict[int, set[int]] = {i: set() for i in range(days)}
     for idx, (stability, last_review, due_at) in enumerate(cards):
+        due_at = _now(due_at) if due_at is not None else None
         for offset in range(days):
-            day_end = now + timedelta(days=offset + 1)
+            day_end = today + timedelta(days=offset + 1, microseconds=-1)
             r = retrievability(stability, last_review, day_end)
             due = due_at is None or due_at <= day_end or r < TARGET_RETRIEVABILITY
             if due:
@@ -276,7 +278,7 @@ def forecast_due_counts(
     return [
         {
             "day_offset": i,
-            "date": (now + timedelta(days=i)).date().isoformat(),
+            "date": (today + timedelta(days=i)).date().isoformat(),
             "due_count": len(buckets[i]),
         }
         for i in range(days)

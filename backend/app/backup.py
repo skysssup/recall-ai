@@ -1,4 +1,4 @@
-"""Validate backups completely before the importer mutates a database."""
+"""Validate backups before mutation, preserving legacy text and full collections."""
 from datetime import datetime
 from typing import Literal
 
@@ -10,7 +10,7 @@ class Record(BaseModel):
 
 
 class TopicRecord(Record):
-    name: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1)
     description: str | None = None
     stability: float = Field(default=1, gt=0, le=3650)
     difficulty: float = Field(default=5, ge=1, le=10)
@@ -20,9 +20,9 @@ class TopicRecord(Record):
 
 
 class ProblemRecord(Record):
-    platform: str = Field(default="manual", min_length=1, max_length=40)
-    slug: str = Field(min_length=1, max_length=240)
-    title: str = Field(default="", max_length=240)
+    platform: str = "manual"
+    slug: str
+    title: str = ""
     url: str | None = None
     difficulty: str = "Medium"
     topic: str | None = None
@@ -39,7 +39,7 @@ class ProblemRecord(Record):
 
 class ReviewRecord(Record):
     problem_platform: str
-    problem_slug: str = Field(min_length=1)
+    problem_slug: str
     rating: int = Field(ge=1, le=4)
     duration_sec: int = Field(default=0, ge=0)
     note: str = ""
@@ -47,8 +47,8 @@ class ReviewRecord(Record):
 
 
 class SolveRecord(Record):
-    platform: str = Field(default="manual", min_length=1, max_length=40)
-    slug: str = Field(min_length=1, max_length=240)
+    platform: str = "manual"
+    slug: str
     title: str = ""
     difficulty: str = "Medium"
     verdict: str = "Accepted"
@@ -58,17 +58,17 @@ class SolveRecord(Record):
     hints_used: int = Field(default=0, ge=0)
     tags: list[str] = Field(default_factory=list)
     source: str = "import"
-    client_event_id: str | None = Field(default=None, max_length=64)
+    client_event_id: str | None = None
     created_at: datetime
 
 
 class Backup(Record):
     version: Literal[1] = 1
-    topics: list[TopicRecord] = Field(default_factory=list, max_length=10000)
-    edges: list[dict[str, str]] = Field(default_factory=list, max_length=50000)
-    problems: list[ProblemRecord] = Field(max_length=50000)
-    reviews: list[ReviewRecord] = Field(default_factory=list, max_length=200000)
-    solves: list[SolveRecord] = Field(default_factory=list, max_length=200000)
+    topics: list[TopicRecord] = Field(default_factory=list)
+    edges: list[dict[str, str]] = Field(default_factory=list)
+    problems: list[ProblemRecord]
+    reviews: list[ReviewRecord] = Field(default_factory=list)
+    solves: list[SolveRecord] = Field(default_factory=list)
     settings: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")

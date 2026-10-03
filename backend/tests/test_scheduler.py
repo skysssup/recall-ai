@@ -1,4 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from app.scheduler import (
     RATING_AGAIN,
@@ -6,6 +8,7 @@ from app.scheduler import (
     RATING_GOOD,
     RATING_HARD,
     apply_review,
+    forecast_due_counts,
     interval_days,
     priority_score,
     recall_from_solve,
@@ -112,3 +115,37 @@ def test_forecast_due_counts_shape():
     assert len(series) == 7
     assert series[0]["due_count"] >= 1
     assert sum(d["due_count"] for d in series) >= 1
+
+
+@pytest.mark.parametrize("current", [
+    datetime(2026, 10, 3), datetime(2026, 10, 3, 14),
+    datetime(2026, 10, 4, 1, tzinfo=timezone(timedelta(hours=11))),
+])
+def test_forecast_uses_utc_calendar_boundaries(current):
+    tomorrow = datetime(2026, 10, 4)
+    cards = [(1000, None, due) for due in (
+        datetime(2026, 10, 1),
+        tomorrow - timedelta(microseconds=1),
+        tomorrow,
+        tomorrow + timedelta(microseconds=1),
+        tomorrow + timedelta(hours=8),
+        datetime(2026, 10, 4, 5, 45, tzinfo=timezone(timedelta(hours=5, minutes=45))),
+        datetime(2026, 10, 5),
+        datetime(2026, 10, 6),
+        None,
+    )]
+    series = forecast_due_counts(cards, days=3, current=current)
+    assert series == [
+        {"day_offset": 0, "date": "2026-10-03", "due_count": 3},
+        {"day_offset": 1, "date": "2026-10-04", "due_count": 4},
+        {"day_offset": 2, "date": "2026-10-05", "due_count": 1},
+    ]
+
+
+def test_forecast_buckets_decay_by_calendar_day():
+    now = datetime(2026, 10, 3, 14)
+    threshold_at = datetime(2026, 10, 4)
+    last_review = threshold_at - timedelta(days=interval_days(1))
+    cards = [(1, last_review, datetime(2026, 12, 1))]
+    series = forecast_due_counts(cards, days=3, current=now)
+    assert [day["due_count"] for day in series] == [0, 1, 0]

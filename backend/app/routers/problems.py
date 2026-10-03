@@ -10,6 +10,7 @@ from ..services import (
     _tags_str,
     find_topic,
     problem_to_out,
+    rebuild_topic_from_history,
     record_review,
     slugify,
     _utcnow,
@@ -104,8 +105,12 @@ def update_problem(problem_id: str, body: ProblemUpdate, db: Session = Depends(g
     if body.tags is not None:
         p.tags = _tags_str(body.tags)
     if body.topic_name is not None:
+        old_topic = p.topic
         topic = find_topic(db, body.topic_name)
-        p.topic_id = topic.id if topic else None
+        if old_topic != topic:
+            p.topic = topic
+            rebuild_topic_from_history(db, old_topic)
+            rebuild_topic_from_history(db, topic)
     db.commit()
     db.refresh(p)
     return problem_to_out(p)
@@ -116,7 +121,9 @@ def delete_problem(problem_id: str, db: Session = Depends(get_db), _token: str =
     p = db.get(Problem, problem_id)
     if not p:
         raise HTTPException(404, "Problem not found")
+    topic = p.topic
     db.delete(p)
+    rebuild_topic_from_history(db, topic)
     db.commit()
     return {"ok": True}
 

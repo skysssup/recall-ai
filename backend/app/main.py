@@ -5,12 +5,13 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from . import __version__
 from .auth import client_is_loopback
 from .config import settings
 from .db import init_db
 from .routers import analytics, capture, export_import, meta, problems, reviews, topics
 
-APP_VERSION = "1.1.1"
+APP_VERSION = __version__
 
 
 def _is_loopback(host: str) -> bool:

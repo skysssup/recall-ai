@@ -1,9 +1,9 @@
 """Import/undo fidelity on temp SQLite."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timezone
 
 from app.models import Problem, Review, Solve, Topic
-from app.services import record_review, rebuild_topic_from_history, undo_last_review
+from app.services import record_review, undo_last_review
 
 
 def test_fresh_import_restores_reviews_due_and_solves(client, db):
@@ -85,7 +85,7 @@ def test_undo_rebuilds_topic_stability_difficulty(db):
         platform="manual",
         slug="undo-card",
         topic_id=topic.id,
-        due_at=datetime.now(UTC).replace(tzinfo=None),
+        due_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(problem)
     db.flush()
