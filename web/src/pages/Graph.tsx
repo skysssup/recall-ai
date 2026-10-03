@@ -7,12 +7,16 @@ import HealthBar from '../components/HealthBar'
 export default function GraphPage() {
   const [graph, setGraph] = useState<GraphPayload | null>(null)
   const [topics, setTopics] = useState<Topic[]>([])
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    api.graph().then(setGraph)
-    api.topics().then(setTopics)
+    Promise.all([api.graph(), api.topics()])
+      .then(([graph, topics]) => { setGraph(graph); setTopics(topics) })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Request failed'))
   }, [])
 
+  if (error) return <div className="panel empty" role="alert">Could not load topic graph: {error}. Check the backend and API token in Settings.</div>
+  if (!graph) return <div className="empty" role="status">Loading topic graph…</div>
   return (
     <div>
       <div className="page-head">

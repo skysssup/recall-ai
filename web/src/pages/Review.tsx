@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../lib/api'
 import type { Problem } from '../lib/types'
 import { RATING_LABELS } from '../lib/types'
@@ -16,66 +16,84 @@ function formatInterval(days: number): string {
 export default function ReviewPage() {
   const [queue, setQueue] = useState<Problem[]>([])
   const [idx, setIdx] = useState(0)
-  const [started, setStarted] = useState(Date.now())
+  const [started, setStarted] = useState(() => Date.now())
   const [toast, setToast] = useState('')
   const [loading, setLoading] = useState(true)
   const [queueError, setQueueError] = useState<string | null>(null)
-  const [previews, setPreviews] = useState<Record<string, number>>({})
+  const [preview, setPreview] = useState<{ problem: Problem; intervals: Record<string, number> } | null>(null)
   const [lastReviewedId, setLastReviewedId] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const inFlight = useRef(false)
 
-  const reload = useCallback(() => {
-    setLoading(true)
-    setQueueError(null)
-    api.queue(30).then((q) => {
+  const loadQueue = useCallback(() => {
+    return api.queue(30).then((q) => {
       setQueue(q)
       setIdx(0)
       setStarted(Date.now())
-      setLoading(false)
+      setQueueError(null)
     }).catch((err) => {
       setQueue([])
       setQueueError(err instanceof Error ? err.message : 'Failed to load review queue')
+    }).finally(() => {
       setLoading(false)
     })
   }, [])
 
-  useEffect(() => { reload() }, [reload])
+  const reload = useCallback(() => {
+    setLoading(true)
+    setQueueError(null)
+    void loadQueue()
+  }, [loadQueue])
+
+  useEffect(() => { void loadQueue() }, [loadQueue])
 
   const current = queue[idx]
+  const previews = preview && preview.problem === current ? preview.intervals : {}
 
   useEffect(() => {
-    if (!current) {
-      setPreviews({})
-      return
-    }
+    if (!current) return
     let cancelled = false
     api.previewIntervals(current.id).then((res) => {
-      if (!cancelled) setPreviews(res.intervals_days)
+      if (!cancelled) setPreview({ problem: current, intervals: res.intervals_days })
     }).catch(() => {
-      if (!cancelled) setPreviews({})
+      if (!cancelled) setPreview(null)
     })
     return () => { cancelled = true }
-  }, [current?.id])
+  }, [current])
 
   const submit = useCallback(async (rating: number) => {
-    if (!current) return
-    const duration = Math.round((Date.now() - started) / 1000)
-    const reviewedId = current.id
-    await api.review(current.id, rating, duration)
-    setLastReviewedId(reviewedId)
-    setToast(`${RATING_LABELS[rating].label} · next interval scheduled · U to undo`)
-    const next = queue.slice(0, idx).concat(queue.slice(idx + 1))
-    setQueue(next)
-    setStarted(Date.now())
-    if (idx >= next.length) setIdx(Math.max(0, next.length - 1))
-    setTimeout(() => setToast(''), 2200)
+    if (!current || inFlight.current) return
+    inFlight.current = true
+    setPending(true)
+    setSubmitError('')
+    try {
+      const duration = Math.round((Date.now() - started) / 1000)
+      await api.review(current.id, rating, duration)
+      setLastReviewedId(current.id)
+      setToast(`${RATING_LABELS[rating].label} · next interval scheduled · U to undo`)
+      const next = queue.slice(0, idx).concat(queue.slice(idx + 1))
+      setQueue(next)
+      setStarted(Date.now())
+      if (idx >= next.length) setIdx(Math.max(0, next.length - 1))
+      setTimeout(() => setToast(''), 2200)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to save review')
+    } finally {
+      inFlight.current = false
+      setPending(false)
+    }
   }, [current, started, queue, idx])
 
   const undo = useCallback(async () => {
+    if (inFlight.current) return
     if (!lastReviewedId) {
       setToast('Nothing to undo')
       setTimeout(() => setToast(''), 1200)
       return
     }
+    inFlight.current = true
+    setPending(true)
     try {
       const res = await api.undoReview(lastReviewedId)
       setLastReviewedId(null)
@@ -83,12 +101,16 @@ export default function ReviewPage() {
       reload()
     } catch {
       setToast('Undo failed')
+    } finally {
+      inFlight.current = false
+      setPending(false)
     }
     setTimeout(() => setToast(''), 1600)
   }, [lastReviewedId, reload])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (inFlight.current || e.repeat) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       if (['1', '2', '3', '4'].includes(e.key)) {
         e.preventDefault()
@@ -124,13 +146,14 @@ export default function ReviewPage() {
           <p>Keyboard: 1 Again · 2 Hard · 3 Good · 4 Easy · U undo · ←/→ skip</p>
         </div>
         <div className="row">
-          <button className="btn" onClick={undo} disabled={!lastReviewedId} aria-label="Undo last review">
+          <button className="btn" onClick={undo} disabled={!lastReviewedId || pending} aria-label="Undo last review">
             Undo
           </button>
-          <button className="btn" onClick={reload}>Refresh queue</button>
+          <button className="btn" onClick={reload} disabled={pending}>Refresh queue</button>
         </div>
       </div>
 
+      {submitError && <p role="alert">Could not save review: {submitError}</p>}
       {!current ? (
         <div className="panel empty">
           <h3 style={{ color: 'var(--accent)' }}>Queue clear</h3>
@@ -167,6 +190,7 @@ export default function ReviewPage() {
               <button
                 key={r}
                 className={`rating-btn r${r}`}
+                disabled={pending}
                 onClick={() => submit(r)}
                 aria-label={`${RATING_LABELS[r].label}${previews[String(r)] != null ? `, next in ${formatInterval(previews[String(r)])}` : ''}`}
               >

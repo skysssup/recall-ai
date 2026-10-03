@@ -85,8 +85,9 @@ export default function SettingsPage() {
         <div className="panel">
           <h3>Preferences</h3>
           <div className="field">
-            <label>Daily review goal</label>
+            <label htmlFor="daily-goal">Daily review goal</label>
             <input
+              id="daily-goal"
               className="input"
               type="number"
               min={1}
@@ -108,7 +109,9 @@ export default function SettingsPage() {
             the backend, paste the same value here (stored only in this browser) and in the
             extension popup. Server hint: <code>{hint || '…'}</code>
           </p>
+          <label className="sr-only" htmlFor="api-token">API token</label>
           <input
+            id="api-token"
             className="input"
             type="password"
             autoComplete="off"

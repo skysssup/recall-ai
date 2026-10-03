@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   Activity,
   BookOpen,
@@ -33,8 +33,13 @@ export default function Layout() {
   const [today, setToday] = useState(0)
 
   useEffect(() => {
-    api.settings().then((s) => setGoal(s.daily_goal)).catch(() => {})
-    api.dashboard().then((d) => setToday(d.reviews_today)).catch(() => {})
+    const refresh = () => {
+      api.settings().then((s) => setGoal(s.daily_goal)).catch(() => {})
+      api.dashboard().then((d) => setToday(d.reviews_today)).catch(() => {})
+    }
+    refresh()
+    window.addEventListener('recall:updated', refresh)
+    return () => window.removeEventListener('recall:updated', refresh)
   }, [])
 
   useEffect(() => {
@@ -120,21 +125,22 @@ export default function Layout() {
         <Outlet />
       </main>
       {searchOpen && (
-        <div className="search-pop" role="dialog">
+        <div className="search-pop" role="dialog" aria-label="Search">
           <input
             autoFocus
+            aria-label="Search topics, problems, and notes"
             placeholder="Search topics, problems, notes…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
           {hits.map((h) => (
-            <div
+            <Link
               key={`${h.kind}-${h.id}`}
               className="search-hit"
+              to={h.kind === 'topic' ? '/graph' : `/problems?focus=${h.id}`}
               onClick={() => {
                 setSearchOpen(false)
                 setQ('')
-                navigate(h.kind === 'topic' ? '/graph' : `/problems?focus=${h.id}`)
               }}
             >
               <div className="kind">{h.kind}</div>
@@ -142,7 +148,7 @@ export default function Layout() {
                 <div>{h.title}</div>
                 <div className="muted" style={{ fontSize: 12 }}>{h.subtitle}</div>
               </div>
-            </div>
+            </Link>
           ))}
           {!hits.length && q.trim() && <div className="empty">No matches</div>}
         </div>

@@ -57,29 +57,29 @@ export default function LogSolvePage() {
       <form className="panel" onSubmit={onSubmit} style={{ maxWidth: 760 }}>
         <div className="layout-2">
           <div>
-            <div className="field"><label>Title</label><input className="input" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-            <div className="field"><label>Slug</label><input className="input" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></div>
-            <div className="field"><label>URL</label><input className="input" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} /></div>
-            <div className="field"><label>Tags</label><input className="input" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
+            <div className="field"><label htmlFor="solve-title">Title</label><input id="solve-title" className="input" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+            <div className="field"><label htmlFor="solve-slug">Slug</label><input id="solve-slug" className="input" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} /></div>
+            <div className="field"><label htmlFor="solve-url">URL</label><input id="solve-url" className="input" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} /></div>
+            <div className="field"><label htmlFor="solve-tags">Tags</label><input id="solve-tags" className="input" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} /></div>
           </div>
           <div>
-            <div className="field"><label>Platform</label>
-              <select className="select" value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })}>
+            <div className="field"><label htmlFor="solve-platform">Platform</label>
+              <select id="solve-platform" className="select" value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })}>
                 <option>leetcode</option><option>codeforces</option><option>manual</option>
               </select>
             </div>
-            <div className="field"><label>Difficulty</label>
-              <select className="select" value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}>
+            <div className="field"><label htmlFor="solve-difficulty">Difficulty</label>
+              <select id="solve-difficulty" className="select" value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}>
                 <option>Easy</option><option>Medium</option><option>Hard</option>
               </select>
             </div>
-            <div className="field"><label>Verdict</label>
-              <select className="select" value={form.verdict} onChange={(e) => setForm({ ...form, verdict: e.target.value })}>
+            <div className="field"><label htmlFor="solve-verdict">Verdict</label>
+              <select id="solve-verdict" className="select" value={form.verdict} onChange={(e) => setForm({ ...form, verdict: e.target.value })}>
                 <option>Accepted</option><option>Wrong Answer</option><option>TLE</option><option>Runtime Error</option>
               </select>
             </div>
-            <div className="field"><label>Topic</label>
-              <select className="select" value={form.topic_name} onChange={(e) => setForm({ ...form, topic_name: e.target.value })}>
+            <div className="field"><label htmlFor="solve-topic">Topic</label>
+              <select id="solve-topic" className="select" value={form.topic_name} onChange={(e) => setForm({ ...form, topic_name: e.target.value })}>
                 <option value="">—</option>
                 {topics.map((t) => <option key={t.id}>{t.name}</option>)}
               </select>
@@ -87,10 +87,10 @@ export default function LogSolvePage() {
           </div>
         </div>
         <div className="layout-2">
-          <div className="field"><label>Time to understand (sec)</label><input className="input" type="number" value={form.time_to_understand_s} onChange={(e) => setForm({ ...form, time_to_understand_s: e.target.value })} /></div>
-          <div className="field"><label>Time to write (sec)</label><input className="input" type="number" value={form.time_to_write_s} onChange={(e) => setForm({ ...form, time_to_write_s: e.target.value })} /></div>
-          <div className="field"><label>Submissions</label><input className="input" type="number" value={form.num_submissions} onChange={(e) => setForm({ ...form, num_submissions: e.target.value })} /></div>
-          <div className="field"><label>Hints used</label><input className="input" type="number" value={form.hints_used} onChange={(e) => setForm({ ...form, hints_used: e.target.value })} /></div>
+          <div className="field"><label htmlFor="solve-understand">Time to understand (sec)</label><input id="solve-understand" className="input" type="number" value={form.time_to_understand_s} onChange={(e) => setForm({ ...form, time_to_understand_s: e.target.value })} /></div>
+          <div className="field"><label htmlFor="solve-write">Time to write (sec)</label><input id="solve-write" className="input" type="number" value={form.time_to_write_s} onChange={(e) => setForm({ ...form, time_to_write_s: e.target.value })} /></div>
+          <div className="field"><label htmlFor="solve-submissions">Submissions</label><input id="solve-submissions" className="input" type="number" value={form.num_submissions} onChange={(e) => setForm({ ...form, num_submissions: e.target.value })} /></div>
+          <div className="field"><label htmlFor="solve-hints">Hints used</label><input id="solve-hints" className="input" type="number" value={form.hints_used} onChange={(e) => setForm({ ...form, hints_used: e.target.value })} /></div>
         </div>
         <button className="btn primary" type="submit">Save solve</button>
         {result && <p style={{ color: 'var(--accent)' }}>{result}</p>}

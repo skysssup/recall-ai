@@ -8,14 +8,20 @@ export default function AnalyticsPage() {
   const [stats, setStats] = useState<Awaited<ReturnType<typeof api.reviewStats>> | null>(null)
   const [forecast, setForecast] = useState<Awaited<ReturnType<typeof api.forecast>> | null>(null)
   const [leeches, setLeeches] = useState<Problem[]>([])
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    api.analytics().then(setOverview)
-    api.reviewStats().then(setStats)
-    api.forecast(14).then(setForecast)
-    api.leeches().then(setLeeches).catch(() => setLeeches([]))
+    Promise.all([api.analytics(), api.reviewStats(), api.forecast(14), api.leeches()])
+      .then(([overview, stats, forecast, leeches]) => {
+        setOverview(overview)
+        setStats(stats)
+        setForecast(forecast)
+        setLeeches(leeches)
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Request failed'))
   }, [])
 
+  if (error) return <div className="panel empty" role="alert">Could not load analytics: {error}. Check the backend and API token in Settings.</div>
   if (!overview) return <div className="empty" role="status">Loading analytics…</div>
 
   const days = Object.entries(stats?.last_30_days || {}).sort(([a], [b]) => a.localeCompare(b))

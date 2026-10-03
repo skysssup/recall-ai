@@ -33,8 +33,9 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text()
     throw new Error(text || res.statusText)
   }
-  if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  const body = res.status === 204 ? undefined : await res.json()
+  if (init?.method && init.method !== 'GET') window.dispatchEvent(new Event('recall:updated'))
+  return body as T
 }
 
 export const api = {
