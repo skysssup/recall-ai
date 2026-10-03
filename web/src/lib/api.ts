@@ -31,7 +31,13 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(text || res.statusText)
+    let detail: unknown
+    try {
+      detail = JSON.parse(text).detail
+    } catch {
+      detail = undefined
+    }
+    throw new Error(typeof detail === 'string' ? detail : text || res.statusText)
   }
   const body = res.status === 204 ? undefined : await res.json()
   if (init?.method && init.method !== 'GET') window.dispatchEvent(new Event('recall:updated'))
