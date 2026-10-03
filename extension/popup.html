@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <style>
@@ -13,10 +13,10 @@
 </head>
 <body>
   <h1>Recall Capture</h1>
-  <label>Backend URL</label>
+  <label for="url">Backend URL</label>
   <input id="url" placeholder="http://127.0.0.1:8787" />
-  <label>API token</label>
-  <input id="token" placeholder="Paste RECALL_API_TOKEN" />
+  <label for="token">API token</label>
+  <input id="token" type="password" autocomplete="off" placeholder="Paste RECALL_API_TOKEN" />
   <button id="save">Save</button>
   <div id="status"></div>
   <script src="popup.js"></script>
